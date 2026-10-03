@@ -17,7 +17,7 @@
     {
       "binding": "DB",
       "database_name": "kaikei-db",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "7e0ca156-db57-4c96-a9ca-06343116cc03",
       "migrations_dir": "migrations"
     }
   ],
