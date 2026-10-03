@@ -1,0 +1,47 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kaikei",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // フロントエンド（React SPA）は Workers Static Assets で配信。/api/* は Worker が先に処理する
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+
+  // 帳簿データ（仕訳・勘定科目・ルール等）
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kaikei-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // 電子領収書・請求書の格納ドライブ ＋ 自動バックアップ
+  "r2_buckets": [
+    { "binding": "RECEIPTS", "bucket_name": "kaikei-receipts" }
+  ],
+
+  // 自動仕訳の AI 推定（任意。無くてもルールベースで動作します）
+  "ai": { "binding": "AI" },
+
+  // 銀行明細の自動取得・日次バックアップ（毎日 JST 6:00）
+  "triggers": { "crons": ["0 21 * * *"] },
+
+  "vars": {
+    "AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "GMO_AOZORA_API_BASE": "https://api.gmo-aozora.com/ganb/api/personal/v1",
+    "GMO_AOZORA_AUTH_BASE": "https://api.gmo-aozora.com/ganb/api/auth/v1"
+  }
+
+  // 以下は `wrangler secret put` で設定してください（README 参照）
+  //   APP_PASSWORD         ログインパスワード
+  //   SESSION_SECRET       セッション署名用のランダム文字列（32文字以上）
+  //   ENCRYPTION_KEY       銀行APIトークン暗号化キー（32文字以上）
+  //   GMO_AOZORA_CLIENT_ID / GMO_AOZORA_CLIENT_SECRET  （銀行API連携を使う場合）
+}

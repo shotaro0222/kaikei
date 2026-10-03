@@ -1,0 +1,5 @@
+APP_PASSWORD=changeme
+SESSION_SECRET=local-dev-session-secret-please-change-0123456789
+ENCRYPTION_KEY=local-dev-encryption-key-please-change-0123456789
+# GMO_AOZORA_CLIENT_ID=
+# GMO_AOZORA_CLIENT_SECRET=
