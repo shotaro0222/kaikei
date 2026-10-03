@@ -70,7 +70,25 @@ npm run dev                           # http://localhost:5173
 
 ローカルでは D1・R2 はローカル実行されます。Workers AI もローカル開発で使う場合は `CF_REMOTE_BINDINGS=1 npm run dev`（要 `wrangler login`）。AI が無くてもルール・辞書だけで自動仕訳は動作します。
 
-### Cloudflare へデプロイ
+### Cloudflare へデプロイ（管理画面＋GitHub 連携・おすすめ）
+
+PC にツールを入れずに、Cloudflare の Workers Builds で自動ビルド・デプロイできます。
+
+1. Workers & Pages →「作成」→「リポジトリをインポート」で GitHub のこのリポジトリを選択
+2. 次のように設定して作成
+
+   | 項目 | 値 |
+   | --- | --- |
+   | プロジェクト名 | `kaikei`（`wrangler.jsonc` の `name` と一致させる） |
+   | Build command | `npm run build` |
+   | Deploy command | `npm run deploy:cf`（デプロイ後に D1 のマイグレーションを適用） |
+   | 本番ブランチ | デプロイしたいブランチ |
+
+   D1（`kaikei-db`）と R2（`kaikei-receipts`）は、無ければ初回デプロイ時に自動作成されます。
+3. `kaikei` →「設定」→「Runtime variables and secrets」で `APP_PASSWORD` / `SESSION_SECRET` / `ENCRYPTION_KEY` を Secret として追加
+4. 以降はブランチへ push するたびに自動でデプロイされます
+
+### Cloudflare へデプロイ（コマンドライン）
 
 ```bash
 # 1. D1 データベースと R2 バケットを作成
