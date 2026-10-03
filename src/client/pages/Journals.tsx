@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, qs } from "../api";
 import { useApp, useFetch, useRoute } from "../app";
-import { AccountSelect, AmountInput, ErrorBox, Field, Modal, TaxSelect, useAccountName } from "../components";
+import { AccountSelect, AmountInput, ErrorBox, Field, Modal, RepeatOption, TaxSelect, useAccountName } from "../components";
+import { monthlyDates } from "../../worker/lib/journal";
 import { SOURCE_LABELS, TAX_LABELS, today, yen } from "../format";
 import type { Journal, Line } from "../types";
 
@@ -18,6 +19,7 @@ export function JournalsPage() {
   const [to, setTo] = useState(`${year}-12-31`);
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Journal | "new" | null>(null);
+  const [copying, setCopying] = useState<Journal | null>(null);
   useEffect(() => {
     setFrom(`${year}-01-01`);
     setTo(`${year}-12-31`);
@@ -88,6 +90,16 @@ export function JournalsPage() {
                       <span className="row" style={{ gap: 4 }}>
                         {j.source !== "manual" && <span className="tag">{SOURCE_LABELS[j.source] ?? j.source}</span>}
                         {(j.receipts?.length ?? 0) > 0 && <span className="tag ok" title="領収書あり">📎{j.receipts!.length}</span>}
+                        <button
+                          className="link small"
+                          title="この仕訳をコピーして新規作成"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCopying(j);
+                          }}
+                        >
+                          複製
+                        </button>
                       </span>
                     )}
                   </td>
@@ -113,15 +125,23 @@ export function JournalsPage() {
           <button disabled={(page + 1) * limit >= data.total} onClick={() => setPage(page + 1)}>次へ</button>
         </div>
       )}
-      {editing && (
+      {(editing || copying) && (
         <JournalEditor
-          journal={editing === "new" ? null : editing}
+          key={copying ? `copy-${copying.id}` : editing === "new" ? "new" : `edit-${(editing as Journal).id}`}
+          journal={copying ? null : editing === "new" ? null : editing}
+          copyFrom={copying}
+          onCopy={(j) => {
+            setEditing(null);
+            setCopying(j);
+          }}
           onClose={() => {
             setEditing(null);
+            setCopying(null);
             if (params.get("id")) window.location.hash = "/journals";
           }}
           onSaved={() => {
             setEditing(null);
+            setCopying(null);
             reload();
             refreshCounts();
           }}
@@ -131,14 +151,25 @@ export function JournalsPage() {
   );
 }
 
-export function JournalEditor({ journal, onClose, onSaved }: { journal: Journal | null; onClose: () => void; onSaved: () => void }) {
+export function JournalEditor({
+  journal, copyFrom, onCopy, onClose, onSaved,
+}: {
+  journal: Journal | null;
+  copyFrom?: Journal | null;
+  onCopy?: (j: Journal) => void;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const { accounts, toast } = useApp();
-  const [date, setDate] = useState(journal?.date ?? today());
-  const [description, setDescription] = useState(journal?.description ?? "");
-  const [partner, setPartner] = useState(journal?.partner ?? "");
-  const [memo, setMemo] = useState(journal?.memo ?? "");
+  const src = journal ?? copyFrom ?? null;
+  // コピー時は翌月の同じ日（月末なら翌月末）を初期値にする
+  const [date, setDate] = useState(journal?.date ?? (copyFrom ? monthlyDates(copyFrom.date, 2)[1] : today()));
+  const [description, setDescription] = useState(src?.description ?? "");
+  const [partner, setPartner] = useState(src?.partner ?? "");
+  const [memo, setMemo] = useState(src?.memo ?? "");
+  const [repeat, setRepeat] = useState(1);
   const [lines, setLines] = useState<EditLine[]>(
-    journal?.lines.map((l) => ({ ...l })) ?? [
+    src?.lines.map(({ id: _id, ...l }) => ({ ...l })) ?? [
       { side: "debit", account_id: 0, amount: "", tax_category: "out" },
       { side: "credit", account_id: 0, amount: "", tax_category: "out" },
     ],
@@ -155,9 +186,13 @@ export function JournalEditor({ journal, onClose, onSaved }: { journal: Journal 
     setError(null);
     const body = { date, description, partner: partner || null, memo: memo || null, lines: lines.filter((l) => l.account_id && l.amount).map((l) => ({ ...l, amount: Number(l.amount) })) };
     try {
-      if (journal) await api.put(`/journals/${journal.id}`, body);
-      else await api.post("/journals", body);
-      toast("保存しました");
+      if (journal) {
+        await api.put(`/journals/${journal.id}`, body);
+        toast("保存しました");
+      } else {
+        const r = await api.post<{ ids: number[] }>("/journals", { ...body, repeat_months: repeat });
+        toast(r.ids.length > 1 ? `${r.ids.length}か月分の仕訳を登録しました` : "保存しました");
+      }
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -177,7 +212,7 @@ export function JournalEditor({ journal, onClose, onSaved }: { journal: Journal 
 
   return (
     <Modal
-      title={journal ? `仕訳の編集 #${journal.id}` : "振替伝票"}
+      title={journal ? `仕訳の編集 #${journal.id}` : copyFrom ? `仕訳のコピー（#${copyFrom.id} から）` : "振替伝票"}
       onClose={onClose}
       footer={
         <>
@@ -186,10 +221,11 @@ export function JournalEditor({ journal, onClose, onSaved }: { journal: Journal 
               削除
             </button>
           )}
+          {journal && onCopy && <button onClick={() => onCopy(journal)}>コピーして新規作成</button>}
           <span className="spacer" />
           <button onClick={onClose}>キャンセル</button>
           <button className="primary" onClick={save} disabled={dr !== cr || dr === 0}>
-            保存
+            {!journal && repeat > 1 ? `${repeat}か月分を登録` : "保存"}
           </button>
         </>
       }
@@ -271,6 +307,11 @@ export function JournalEditor({ journal, onClose, onSaved }: { journal: Journal 
       <Field label="メモ" style={{ marginTop: 10 }}>
         <textarea value={memo} onChange={(e) => setMemo(e.target.value)} />
       </Field>
+      {!journal && (
+        <div style={{ marginTop: 10 }}>
+          <RepeatOption date={date} value={repeat} onChange={setRepeat} />
+        </div>
+      )}
       {journal?.receipts && journal.receipts.length > 0 && (
         <p className="small">
           添付書類:{" "}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useApp } from "./app";
 import { CATEGORY_LABELS, TAX_LABELS, yen } from "./format";
 import type { Account, Category, TaxCategory } from "./types";
+import { MAX_REPEAT_MONTHS, monthlyDates } from "../worker/lib/journal";
 
 export function AccountSelect({
   value, onChange, categories, includeInactive, placeholder = "科目を選択", className,
@@ -146,4 +147,32 @@ export function useAccountName() {
 export function Confidence({ v, source }: { v: number; source?: string }) {
   const label = source === "learned" ? "学習" : source === "user" ? "ルール" : source === "dictionary" ? "辞書" : source === "ai" ? "AI" : "仮";
   return <span className={`tag ${v >= 0.8 ? "ok" : v >= 0.5 ? "" : "warn"}`}>{label}</span>;
+}
+
+/** 毎月繰り返し登録のオプション（value = 登録する月数。1 なら繰り返さない） */
+export function RepeatOption({ date, value, onChange }: { date: string; value: number; onChange: (months: number) => void }) {
+  const on = value > 1;
+  const dates = on && /^\d{4}-\d{2}-\d{2}$/.test(date) ? monthlyDates(date, value) : [];
+  return (
+    <div className="stack" style={{ gap: 4 }}>
+      <label className="row small" style={{ gap: 6 }}>
+        <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked ? MAX_REPEAT_MONTHS : 1)} />
+        毎月繰り返し登録する
+        {on && (
+          <select value={value} onChange={(e) => onChange(Number(e.target.value))}>
+            {Array.from({ length: MAX_REPEAT_MONTHS - 1 }, (_, i) => i + 2).map((n) => (
+              <option key={n} value={n}>
+                {n}か月分
+              </option>
+            ))}
+          </select>
+        )}
+      </label>
+      {dates.length > 0 && (
+        <span className="muted small">
+          {dates[0]} 〜 {dates[dates.length - 1]} の毎月{Number(date.slice(8)) === new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0)).getUTCDate() ? "末日" : `${Number(date.slice(8))}日`}に {dates.length}件 登録します
+        </span>
+      )}
+    </div>
+  );
 }

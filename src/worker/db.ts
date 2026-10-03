@@ -134,6 +134,28 @@ export async function insertJournal(db: D1Database, j: JournalInput, extra: D1Pr
   return Number(res[0].meta.last_row_id);
 }
 
+/**
+ * 複数の仕訳を 1 トランザクションで登録（毎月の繰り返し登録用）。
+ * extraAfterFirst は最初の仕訳の直後に実行される（領収書の紐付け・学習など）。
+ */
+export async function insertJournals(db: D1Database, js: JournalInput[], extraAfterFirst: D1PreparedStatement[] = []): Promise<number[]> {
+  const stmts: D1PreparedStatement[] = [];
+  const headerIdx: number[] = [];
+  js.forEach((j, i) => {
+    headerIdx.push(stmts.length);
+    stmts.push(
+      db
+        .prepare("INSERT INTO journals (date, description, partner, memo, source, source_ref) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(j.date, j.description, j.partner ?? null, j.memo ?? null, j.source ?? "manual", j.source_ref ?? null),
+      ...lineStmts(db, NEW_JOURNAL_ID, [], j.lines),
+      auditStmt(db, "create", "journal", NEW_JOURNAL_ID, [], null, j),
+    );
+    if (i === 0) stmts.push(...extraAfterFirst);
+  });
+  const res = await db.batch(stmts);
+  return headerIdx.map((k) => Number(res[k].meta.last_row_id));
+}
+
 export async function updateJournal(db: D1Database, id: number, j: JournalInput, before: unknown): Promise<void> {
   await db.batch([
     db

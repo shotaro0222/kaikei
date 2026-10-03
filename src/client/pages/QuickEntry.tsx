@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { useApp } from "../app";
-import { AccountSelect, AmountInput, Confidence, ErrorBox, Field, TaxSelect, useAccountName } from "../components";
+import { AccountSelect, AmountInput, Confidence, ErrorBox, Field, RepeatOption, TaxSelect, useAccountName } from "../components";
 import { TAX_LABELS, today, yen } from "../format";
 import type { Direction, Line, Suggestion, TaxCategory } from "../types";
 
@@ -42,6 +42,7 @@ export function QuickEntryPage() {
   const [manualTax, setManualTax] = useState<TaxCategory | null>(null);
   const [res, setRes] = useState<SuggestResponse | null>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [repeat, setRepeat] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -83,6 +84,7 @@ export function QuickEntryPage() {
     setManualAccount(null);
     setManualTax(null);
     setFiles([]);
+    setRepeat(1);
     setRes(null);
     if (fileRef.current) fileRef.current.value = "";
   };
@@ -110,9 +112,10 @@ export function QuickEntryPage() {
         source: "quick",
         lines: res.lines,
         receipt_ids,
+        repeat_months: repeat,
         learn: { text: description, direction, account_id: res.suggestion.account_id, tax_category: res.suggestion.tax_category },
       });
-      toast("仕訳を登録しました");
+      toast(repeat > 1 ? `${repeat}か月分の仕訳を登録しました` : "仕訳を登録しました");
       refreshCounts();
       reset();
     } catch (e) {
@@ -176,6 +179,7 @@ export function QuickEntryPage() {
               <input type="text" value={memo} onChange={(e) => setMemo(e.target.value)} />
             </Field>
           </div>
+          <RepeatOption date={date} value={repeat} onChange={setRepeat} />
           <Field label="領収書・請求書（任意・画像/PDF）">
             <input ref={fileRef} type="file" multiple accept="image/*,application/pdf" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
           </Field>
@@ -233,7 +237,7 @@ export function QuickEntryPage() {
           <div className="row end">
             <button onClick={reset}>クリア</button>
             <button className="primary" disabled={busy || !res || !res.lines.length || !description.trim()} onClick={save}>
-              登録する
+              {repeat > 1 ? `${repeat}か月分を登録` : "登録する"}
             </button>
           </div>
           <p className="muted small">登録した内容は学習され、次回から同じ内容は同じ科目で自動仕訳されます。</p>

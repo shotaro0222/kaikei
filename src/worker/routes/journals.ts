@@ -2,11 +2,11 @@ import { Hono } from "hono";
 import type { AppEnv, Env } from "../env";
 import {
   HttpError, NEW_JOURNAL_ID, deleteJournalStmts, getAccounts, getApportionRules, getRules, getSettings,
-  insertJournal, loadJournals, normalizeJournal, systemAccounts, updateJournal,
+  insertJournal, insertJournals, loadJournals, normalizeJournal, systemAccounts, updateJournal,
 } from "../db";
 import type { Account, ApportionRule, Direction, JournalInput, TaxCategory } from "../lib/types";
 import { isValidDate, TAX_CATEGORIES } from "../lib/types";
-import { buildQuickLines } from "../lib/journal";
+import { buildQuickLines, MAX_REPEAT_MONTHS, monthlyDates } from "../lib/journal";
 import { classify, type Suggestion } from "../lib/classifier";
 import { learningKey } from "../lib/normalize";
 import { aiClassify } from "../lib/ai";
@@ -124,6 +124,8 @@ journalRoutes.get("/journals/:id", async (c) => {
 interface JournalBody extends JournalInput {
   learn?: { text: string; direction: Direction; account_id: number; tax_category?: TaxCategory };
   receipt_ids?: number[];
+  /** 毎月繰り返し登録する月数（2〜12）。1 または未指定なら 1 件のみ */
+  repeat_months?: number;
 }
 
 journalRoutes.post("/journals", async (c) => {
@@ -136,8 +138,14 @@ journalRoutes.post("/journals", async (c) => {
     if (s) extra.push(s);
   }
   for (const rid of b.receipt_ids ?? []) extra.push(c.env.DB.prepare(`UPDATE receipts SET journal_id = ${NEW_JOURNAL_ID} WHERE id = ?`).bind(Number(rid)));
-  const id = await insertJournal(c.env.DB, j, extra);
-  return c.json({ id });
+  const months = b.repeat_months == null ? 1 : Number(b.repeat_months);
+  if (!Number.isInteger(months) || months < 1 || months > MAX_REPEAT_MONTHS) throw new HttpError(400, `繰り返し登録は1〜${MAX_REPEAT_MONTHS}か月で指定してください`);
+  if (months === 1) {
+    const id = await insertJournal(c.env.DB, j, extra);
+    return c.json({ id, ids: [id] });
+  }
+  const ids = await insertJournals(c.env.DB, monthlyDates(j.date, months).map((date) => ({ ...j, date })), extra);
+  return c.json({ id: ids[0], ids });
 });
 
 journalRoutes.put("/journals/:id", async (c) => {

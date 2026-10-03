@@ -140,6 +140,14 @@ await call("DELETE", `/journals/${j1.id}`);
 const log = await call("GET", `/audit-log?entity=journal&entity_id=${j1.id}`);
 check("audit log create+delete", log.length === 2 && log[0].action === "delete", log);
 
+// 毎月の繰り返し登録
+const rep = await call("POST", "/journals", { date: `${Y}-01-31`, description: "サーバー代", lines: [{ side: "debit", account_id: A["通信費"], amount: 1100, tax_category: "taxable10" }, { side: "credit", account_id: A["未払金"], amount: 1100 }], repeat_months: 12 });
+check("repeat 12 months", rep.ids?.length === 12, rep);
+const repList = await call("GET", `/journals?q=${encodeURIComponent("サーバー代")}&limit=50`);
+const repDates = repList.items.map((j) => j.date).sort();
+check("repeat dates month-end", repDates[0] === `${Y}-01-31` && repDates[1] === `${Y}-02-28` && repDates[11] === `${Y}-12-31` && repList.items.every((j) => j.lines.length === 2), repDates);
+check("repeat > 12 rejected", (await call("POST", "/journals", { date: `${Y}-01-01`, description: "x", lines: [{ side: "debit", account_id: A["通信費"], amount: 1 }, { side: "credit", account_id: A["現金"], amount: 1 }], repeat_months: 13 }, true)).status === 400);
+
 // 学習ルール
 const rules = await call("GET", "/rules");
 check("learned rules exist", rules.some((r) => r.kind === "learned"), rules.length);

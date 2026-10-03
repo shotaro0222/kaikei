@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildQuickLines, includedTax, validateLines } from "../src/worker/lib/journal";
+import { buildQuickLines, includedTax, monthlyDates, validateLines } from "../src/worker/lib/journal";
 import { yearEndApportion } from "../src/worker/lib/apportion";
 import { A } from "./fixtures";
 
@@ -77,5 +77,25 @@ describe("yearEndApportion", () => {
     expect(r[0]).toMatchObject({ business: 360_000, private: 840_000 });
     expect(r[0].lines[0]).toMatchObject({ side: "debit", account_id: A["事業主貸"], amount: 840_000 });
     expect(r[0].lines[1]).toMatchObject({ side: "credit", account_id: A["地代家賃"], amount: 840_000, tax_category: "taxable10" });
+  });
+});
+
+describe("monthlyDates", () => {
+  it("同じ日付で12か月分", () => {
+    const d = monthlyDates("2026-01-25", 12);
+    expect(d).toHaveLength(12);
+    expect(d[0]).toBe("2026-01-25");
+    expect(d[11]).toBe("2026-12-25");
+  });
+  it("年をまたぐ", () => {
+    expect(monthlyDates("2026-11-10", 3)).toEqual(["2026-11-10", "2026-12-10", "2027-01-10"]);
+  });
+  it("月末日から始めると毎月末日", () => {
+    expect(monthlyDates("2026-01-31", 4)).toEqual(["2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30"]);
+    expect(monthlyDates("2026-04-30", 2)).toEqual(["2026-04-30", "2026-05-31"]);
+  });
+  it("その月に無い日は月末日に丸める", () => {
+    expect(monthlyDates("2026-01-30", 3)).toEqual(["2026-01-30", "2026-02-28", "2026-03-30"]);
+    expect(monthlyDates("2028-01-29", 2)).toEqual(["2028-01-29", "2028-02-29"]);
   });
 });

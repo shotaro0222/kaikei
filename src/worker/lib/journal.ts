@@ -81,3 +81,28 @@ export function includedTax(amount: number, tax: TaxCategory): number {
   if (tax === "taxable8") return Math.floor((amount * 8) / 108);
   return 0;
 }
+
+export const MAX_REPEAT_MONTHS = 12;
+
+/**
+ * 毎月繰り返し登録する日付の一覧（start を含めて months 件）。
+ * 月末日から始めた場合は毎月末日（1/31 → 2/28 → 3/31）、
+ * それ以外は同じ日付で、その月に無い日は月末日に丸める（1/30 → 2/28 → 3/30）。
+ */
+export function monthlyDates(start: string, months: number): string[] {
+  const y = Number(start.slice(0, 4));
+  const m = Number(start.slice(5, 7));
+  const d = Number(start.slice(8, 10));
+  const lastDay = (yy: number, mm: number) => new Date(Date.UTC(yy, mm, 0)).getUTCDate();
+  const startIsMonthEnd = d === lastDay(y, m);
+  const out: string[] = [];
+  for (let i = 0; i < months; i++) {
+    const total = m - 1 + i;
+    const yy = y + Math.floor(total / 12);
+    const mm = (total % 12) + 1;
+    const last = lastDay(yy, mm);
+    const dd = startIsMonthEnd ? last : Math.min(d, last);
+    out.push(`${yy}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`);
+  }
+  return out;
+}
