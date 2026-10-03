@@ -74,7 +74,7 @@ npm run dev                           # http://localhost:5173
 
 ```bash
 # 1. D1 データベースと R2 バケットを作成
-npx wrangler d1 create kaikei-db          # 表示された database_id を wrangler.jsonc に設定
+npx wrangler d1 create kaikei-db          # 省略可（初回デプロイ時に同名で自動作成されます）
 npx wrangler r2 bucket create kaikei-receipts
 
 # 2. テーブル作成

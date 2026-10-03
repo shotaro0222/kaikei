@@ -15,7 +15,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply kaikei-db --remote",
     "cf-typegen": "wrangler types src/worker/worker-configuration.d.ts",
     "test:e2e": "node scripts/e2e.mjs",
-    "deploy:cf": "wrangler d1 migrations apply kaikei-db --remote && wrangler deploy"
+    "deploy:cf": "wrangler deploy && wrangler d1 migrations apply kaikei-db --remote"
   },
   "dependencies": {
     "hono": "^4.13.12",

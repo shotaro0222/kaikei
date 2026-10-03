@@ -13,11 +13,11 @@
   },
 
   // 帳簿データ（仕訳・勘定科目・ルール等）
+  // database_id は指定しない: デプロイ時に同名の D1 があれば接続、無ければ自動作成される
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "kaikei-db",
-      "database_id": "7e0ca156-db57-4c96-a9ca-06343116cc03",
       "migrations_dir": "migrations"
     }
   ],
